@@ -100,6 +100,7 @@ void AirsimROSWrapper::initialize_ros()
     isENU_ = !(odom_frame_id_ == AIRSIM_ODOM_FRAME_ID);
     nh_private_.param("coordinate_system_enu", isENU_, isENU_);
     vel_cmd_duration_ = 0.05; // todo rosparam
+    pwm_cmd_duration_ = 0.1; // Longer than velocity command -> assume next one is coming
     // todo enforce dynamics constraints in this node as well?
     // nh_.getParam("max_vert_vel_", max_vert_vel_);
     // nh_.getParam("max_horz_vel", max_horz_vel_)
@@ -169,6 +170,12 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
                 curr_vehicle_name + "/vel_cmd_world_frame",
                 1,
                 boost::bind(&AirsimROSWrapper::vel_cmd_world_frame_cb, this, _1, vehicle_ros->vehicle_name));
+
+            // Direct rotor control
+            drone->pwm_cmd_sub = nh_private_.subscribe<airsim_ros_pkgs::PWMCmd>(
+                curr_vehicle_name + "/pwm_cmd",
+                1,
+                boost::bind(&AirsimROSWrapper::pwm_cmd_cb, this, _1, vehicle_ros->vehicle_name));
 
             drone->takeoff_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Takeoff::Request, airsim_ros_pkgs::Takeoff::Response>(
                 curr_vehicle_name + "/takeoff",
@@ -482,6 +489,18 @@ void AirsimROSWrapper::car_cmd_cb(const airsim_ros_pkgs::CarControls::ConstPtr& 
 msr::airlib::Pose AirsimROSWrapper::get_airlib_pose(const float& x, const float& y, const float& z, const msr::airlib::Quaternionr& airlib_quat) const
 {
     return msr::airlib::Pose(msr::airlib::Vector3r(x, y, z), airlib_quat);
+}
+
+void AirsimROSWrapper::pwm_cmd(const airsim_ros_pkgs::PWMCmd::ConstPtr& msg, const std::string& vehicle_name)
+{
+    std::lock_guard<std::mutex> guard(drone_control_mutex_);
+    auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map[vehicle_name].get());
+
+    for (int i = 0; i < 4; i++) {
+        drone->pwm_cmd[i] = msg->pwms[i];
+    }
+
+    drone->has_pwm_cmd = true;
 }
 
 // void AirsimROSWrapper::vel_cmd_body_frame_cb(const airsim_ros_pkgs::VelCmd& msg, const std::string& vehicle_name)
@@ -1143,8 +1162,16 @@ void AirsimROSWrapper::update_commands()
                                                              msr::airlib::DrivetrainType::MaxDegreeOfFreedom,
                                                              drone->vel_cmd.yaw_mode,
                                                              drone->vehicle_name);
+            } else if (drone->has_pwm_cmd) { // vel_cmd has priority
+                std::lock_guard<std::mutex> guard(drone_control_mutex_);
+                get_multirotor_client()->moveByMotorPWMsAsync(drone->pwm_cmd[0],
+                                                              drone->pwm_cmd[1],
+                                                              drone->pwm_cmd[2],
+                                                              drone->pwm_cmd[3],
+                                                              pwm_cmd_duration_,
+                                                              drone->vehicle_name)
             }
-            drone->has_vel_cmd = false;
+            drone->has_vel_cmd = false; drone->has_pwm_cmd = false;
         }
         else {
             // send control commands from the last callback to airsim

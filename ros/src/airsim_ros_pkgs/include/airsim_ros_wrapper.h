@@ -23,6 +23,7 @@ STRICT_MODE_OFF //todo what does this do?
 #include <airsim_ros_pkgs/Reset.h>
 #include <airsim_ros_pkgs/Takeoff.h>
 #include <airsim_ros_pkgs/TakeoffGroup.h>
+#include <airsim_ros_pkgs/PWMCmd.h>
 #include <airsim_ros_pkgs/VelCmd.h>
 #include <airsim_ros_pkgs/VelCmdGroup.h>
 #include <airsim_ros_pkgs/CarControls.h>
@@ -204,12 +205,16 @@ private:
 
         ros::Subscriber vel_cmd_body_frame_sub;
         ros::Subscriber vel_cmd_world_frame_sub;
+        ros::Subscriber pwm_cmd_sub;
 
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
 
         bool has_vel_cmd;
         VelCmd vel_cmd;
+
+        bool has_pwm_cmd;
+        double[4] pwm_cmd;
 
         /// Status
         // bool in_air_; // todo change to "status" and keep track of this
@@ -229,6 +234,8 @@ private:
 
     void vel_cmd_all_world_frame_cb(const airsim_ros_pkgs::VelCmd& msg);
     void vel_cmd_all_body_frame_cb(const airsim_ros_pkgs::VelCmd& msg);
+
+    void pwm_cmd_cb(const airsim_ros_pkgs::PWMCmd::ConstPtr& msg, const std::string& vehicle_name);
 
     // void vel_cmd_body_frame_cb(const airsim_ros_pkgs::VelCmd& msg, const std::string& vehicle_name);
     void gimbal_angle_quat_cmd_cb(const airsim_ros_pkgs::GimbalAngleQuatCmd& gimbal_angle_quat_cmd_msg);
@@ -365,7 +372,7 @@ private:
     tf2_ros::TransformListener tf_listener_;
 
     /// ROS params
-    double vel_cmd_duration_;
+    double vel_cmd_duration_, pwm_cmd_duration_;
 
     /// ROS Timers.
     ros::Timer airsim_img_response_timer_;
