@@ -23,11 +23,12 @@ STRICT_MODE_OFF //todo what does this do?
 #include <airsim_ros_pkgs/Reset.h>
 #include <airsim_ros_pkgs/Takeoff.h>
 #include <airsim_ros_pkgs/TakeoffGroup.h>
-#include <airsim_ros_pkgs/PWMCmd.h>
+#include <airsim_ros_pkgs/RotorPWMCmd.h>
 #include <airsim_ros_pkgs/VelCmd.h>
 #include <airsim_ros_pkgs/VelCmdGroup.h>
 #include <airsim_ros_pkgs/CarControls.h>
 #include <airsim_ros_pkgs/CarState.h>
+#include <airsim_ros_pkgs/RotorState.h>
 #include <airsim_ros_pkgs/Environment.h>
 #include <chrono>
 #include <cv_bridge/cv_bridge.h>
@@ -201,11 +202,15 @@ private:
     public:
         /// State
         msr::airlib::MultirotorState curr_drone_state;
+        msr::airlib::RotorStates curr_rotor_states;
         // bool in_air_; // todo change to "status" and keep track of this
 
         ros::Subscriber vel_cmd_body_frame_sub;
         ros::Subscriber vel_cmd_world_frame_sub;
         ros::Subscriber pwm_cmd_sub;
+
+        airsim_ros_pkgs::RotorState rotor_state_msg;
+        ros::Publisher rotor_state_pub;
 
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
@@ -235,7 +240,7 @@ private:
     void vel_cmd_all_world_frame_cb(const airsim_ros_pkgs::VelCmd& msg);
     void vel_cmd_all_body_frame_cb(const airsim_ros_pkgs::VelCmd& msg);
 
-    void pwm_cmd_cb(const airsim_ros_pkgs::PWMCmd::ConstPtr& msg, const std::string& vehicle_name);
+    void pwm_cmd_cb(const airsim_ros_pkgs::RotorPWMCmd::ConstPtr& msg, const std::string& vehicle_name);
 
     // void vel_cmd_body_frame_cb(const airsim_ros_pkgs::VelCmd& msg, const std::string& vehicle_name);
     void gimbal_angle_quat_cmd_cb(const airsim_ros_pkgs::GimbalAngleQuatCmd& gimbal_angle_quat_cmd_msg);
@@ -285,6 +290,7 @@ private:
     tf2::Quaternion get_tf2_quat(const msr::airlib::Quaternionr& airlib_quat) const;
     msr::airlib::Quaternionr get_airlib_quat(const geometry_msgs::Quaternion& geometry_msgs_quat) const;
     msr::airlib::Quaternionr get_airlib_quat(const tf2::Quaternion& tf2_quat) const;
+    airsim_ros_pkgs::RotorState get_rotor_state_msg_from_rotor_state(const msr::airlib::RotorStates& rotor_states) const;
     nav_msgs::Odometry get_odom_msg_from_multirotor_state(const msr::airlib::MultirotorState& drone_state) const;
     nav_msgs::Odometry get_odom_msg_from_car_state(const msr::airlib::CarApiBase::CarState& car_state) const;
     airsim_ros_pkgs::CarState get_roscarstate_msg_from_car_state(const msr::airlib::CarApiBase::CarState& car_state) const;

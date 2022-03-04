@@ -172,7 +172,7 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
                 boost::bind(&AirsimROSWrapper::vel_cmd_world_frame_cb, this, _1, vehicle_ros->vehicle_name));
 
             // Direct rotor control
-            drone->pwm_cmd_sub = nh_private_.subscribe<airsim_ros_pkgs::PWMCmd>(
+            drone->pwm_cmd_sub = nh_private_.subscribe<airsim_ros_pkgs::RotorPWMCmd>(
                 curr_vehicle_name + "/pwm_cmd",
                 1,
                 boost::bind(&AirsimROSWrapper::pwm_cmd_cb, this, _1, vehicle_ros->vehicle_name));
@@ -184,6 +184,9 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
             drone->land_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Land::Request, airsim_ros_pkgs::Land::Response>(
                 curr_vehicle_name + "/land",
                 boost::bind(&AirsimROSWrapper::land_srv_cb, this, _1, _2, vehicle_ros->vehicle_name));
+
+            // Rotor states
+            drone->rotor_state_pub = nh_private_.advertise<airsim_ros_pkgs::RotorState>(curr_vehicle_name + "/rotor_states", 10);
 
             // vehicle_ros.reset_srvr = nh_private_.advertiseService(curr_vehicle_name + "/reset",&AirsimROSWrapper::reset_srv_cb, this);
         }
@@ -491,13 +494,13 @@ msr::airlib::Pose AirsimROSWrapper::get_airlib_pose(const float& x, const float&
     return msr::airlib::Pose(msr::airlib::Vector3r(x, y, z), airlib_quat);
 }
 
-void AirsimROSWrapper::pwm_cmd(const airsim_ros_pkgs::PWMCmd::ConstPtr& msg, const std::string& vehicle_name)
+void AirsimROSWrapper::pwm_cmd_cb(const airsim_ros_pkgs::RotorPWMCmd::ConstPtr& msg, const std::string& vehicle_name)
 {
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
     auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map[vehicle_name].get());
 
     for (int i = 0; i < 4; i++) {
-        drone->pwm_cmd[i] = msg->pwms[i];
+        drone->pwm_cmd[i] = msg->rotor_pwms[i];
     }
 
     drone->has_pwm_cmd = true;
@@ -658,6 +661,16 @@ void AirsimROSWrapper::gimbal_angle_euler_cmd_cb(const airsim_ros_pkgs::GimbalAn
     catch (tf2::TransformException& ex) {
         ROS_WARN("%s", ex.what());
     }
+}
+
+airsim_ros_pkgs::RotorState AirsimROSWrapper::get_rotor_state_msg_from_rotor_state(const msr::airlib:RotorStates& rotor_states) const
+{
+    airsim_ros_pkgs::RotorState rotor_state_msg;
+    for (int i = 0; i < 4; i++) {
+        rotor_state_msg.rotor_pwms[i] = (double) rotor_states->rotors[i]->thrust;
+    }
+
+    return rotor_state_msg;
 }
 
 airsim_ros_pkgs::CarState AirsimROSWrapper::get_roscarstate_msg_from_car_state(const msr::airlib::CarApiBase::CarState& car_state) const
@@ -1026,6 +1039,7 @@ ros::Time AirsimROSWrapper::update_state()
 
         if (airsim_mode_ == AIRSIM_MODE::DRONE) {
             auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
+            drone->curr_rotor_states = get_multirotor_client()->getRotorStates(vehicle_ros->vehicle_name);
             drone->curr_drone_state = get_multirotor_client()->getMultirotorState(vehicle_ros->vehicle_name);
 
             vehicle_time = airsim_timestamp_to_ros(drone->curr_drone_state.timestamp);
@@ -1038,6 +1052,10 @@ ros::Time AirsimROSWrapper::update_state()
             vehicle_ros->gps_sensor_msg.header.stamp = vehicle_time;
 
             vehicle_ros->curr_odom = get_odom_msg_from_multirotor_state(drone->curr_drone_state);
+
+            airsim_ros_pkgs::RotorState rotor_state_msg = get_rotor_state_msg_from_rotor_state(drone->curr_rotor_states);
+            rotor_state_msg.header.frame_id = vehicle_ros->vehicle_name;
+            drone->rotor_state_msg = rotor_state_msg;
         }
         else {
             auto car = static_cast<CarROS*>(vehicle_ros.get());
@@ -1087,6 +1105,9 @@ void AirsimROSWrapper::publish_vehicle_state()
             // dashboard reading from car, RPM, gear, etc
             auto car = static_cast<CarROS*>(vehicle_ros.get());
             car->car_state_pub.publish(car->car_state_msg);
+        } else if (airsim_mode_ == AIRSIM_MODE::DRONE) {
+            auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
+            drone->rotor_state_pub.publish(drone->rotor_state_msg);
         }
 
         // odom and transforms
