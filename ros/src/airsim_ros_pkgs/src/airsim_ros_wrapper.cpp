@@ -497,7 +497,7 @@ msr::airlib::Pose AirsimROSWrapper::get_airlib_pose(const float& x, const float&
 void AirsimROSWrapper::pwm_cmd_cb(const airsim_ros_pkgs::RotorPWMCmd::ConstPtr& msg, const std::string& vehicle_name)
 {
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
-    auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map[vehicle_name].get());
+    auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
     for (int i = 0; i < 4; i++) {
         drone->pwm_cmd[i] = msg->rotor_pwms[i];
@@ -663,11 +663,11 @@ void AirsimROSWrapper::gimbal_angle_euler_cmd_cb(const airsim_ros_pkgs::GimbalAn
     }
 }
 
-airsim_ros_pkgs::RotorState AirsimROSWrapper::get_rotor_state_msg_from_rotor_state(const msr::airlib:RotorStates& rotor_states) const
+airsim_ros_pkgs::RotorState AirsimROSWrapper::get_rotor_state_msg_from_rotor_state(const msr::airlib::RotorStates& rotor_states) const
 {
     airsim_ros_pkgs::RotorState rotor_state_msg;
     for (int i = 0; i < 4; i++) {
-        rotor_state_msg.rotor_pwms[i] = (double) rotor_states->rotors[i]->thrust;
+        rotor_state_msg.rotor_pwms[i] = (double) rotor_states.rotors[i].thrust;
     }
 
     return rotor_state_msg;
@@ -1190,7 +1190,7 @@ void AirsimROSWrapper::update_commands()
                                                               drone->pwm_cmd[2],
                                                               drone->pwm_cmd[3],
                                                               pwm_cmd_duration_,
-                                                              drone->vehicle_name)
+                                                              drone->vehicle_name);
             }
             drone->has_vel_cmd = false; drone->has_pwm_cmd = false;
         }

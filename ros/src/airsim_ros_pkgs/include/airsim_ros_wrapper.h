@@ -219,7 +219,7 @@ private:
         VelCmd vel_cmd;
 
         bool has_pwm_cmd;
-        double[4] pwm_cmd;
+        double pwm_cmd[4];
 
         /// Status
         // bool in_air_; // todo change to "status" and keep track of this

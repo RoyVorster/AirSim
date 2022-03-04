@@ -51,6 +51,8 @@ add_message_files(
   GPSYaw.msg
   VelCmd.msg
   VelCmdGroup.msg
+  RotorPWMCmd.msg
+  RotorState.msg
   CarControls.msg
   CarState.msg
   Altimeter.msg
