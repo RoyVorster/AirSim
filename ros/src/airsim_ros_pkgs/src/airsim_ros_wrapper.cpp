@@ -667,7 +667,7 @@ airsim_ros_pkgs::RotorState AirsimROSWrapper::get_rotor_state_msg_from_rotor_sta
 {
     airsim_ros_pkgs::RotorState rotor_state_msg;
     for (int i = 0; i < 4; i++) {
-        rotor_state_msg.rotor_pwms[i] = (double) rotor_states.rotors[i].thrust;
+        rotor_state_msg.rotor_pwms.push_back((double) rotor_states.rotors[i].thrust);
     }
 
     return rotor_state_msg;
